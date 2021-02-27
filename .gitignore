@@ -4,3 +4,8 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/robustqa.iml
 /.idea/vcs.xml
+/datasets/*
+/save/*
+.idea/*
+.idea/workspace.xml
+.DS
