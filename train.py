@@ -10,12 +10,12 @@ from transformers import DistilBertForQuestionAnswering
 from transformers import AdamW
 from tensorboardX import SummaryWriter
 
-
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
 from args import get_train_test_args
 
 from tqdm import tqdm
+
 
 def prepare_eval_data(dataset_dict, tokenizer):
     tokenized_examples = tokenizer(dataset_dict['question'],
@@ -47,7 +47,6 @@ def prepare_eval_data(dataset_dict, tokenizer):
         ]
 
     return tokenized_examples
-
 
 
 def prepare_train_data(dataset_dict, tokenizer):
@@ -117,14 +116,13 @@ def prepare_train_data(dataset_dict, tokenizer):
     return tokenized_examples
 
 
-
 def read_and_process(args, tokenizer, dataset_dict, dir_name, dataset_name, split):
     #TODO: cache this if possible
     cache_path = f'{dir_name}/{dataset_name}_encodings.pt'
     if os.path.exists(cache_path) and not args.recompute_features:
         tokenized_examples = util.load_pickle(cache_path)
     else:
-        if split=='train':
+        if split == 'train':
             tokenized_examples = prepare_train_data(dataset_dict, tokenizer)
         else:
             tokenized_examples = prepare_eval_data(dataset_dict, tokenizer)
@@ -132,8 +130,7 @@ def read_and_process(args, tokenizer, dataset_dict, dir_name, dataset_name, spli
     return tokenized_examples
 
 
-
-#TODO: use a logger, use tensorboard
+# TODO: use a logger, use tensorboard
 class Trainer():
     def __init__(self, args, log):
         self.lr = args.lr
@@ -178,8 +175,8 @@ class Trainer():
         start_logits = torch.cat(all_start_logits).cpu().numpy()
         end_logits = torch.cat(all_end_logits).cpu().numpy()
         preds = util.postprocess_qa_predictions(data_dict,
-                                                 data_loader.dataset.encodings,
-                                                 (start_logits, end_logits))
+                                                data_loader.dataset.encodings,
+                                                (start_logits, end_logits))
         if split == 'validation':
             results = util.eval_dicts(data_dict, preds)
             results_list = [('F1', results['F1']),
@@ -195,16 +192,21 @@ class Trainer():
     def train(self, model, train_dataloader, eval_dataloader, val_dict):
         device = self.device
         model.to(device)
-        optim = AdamW(model.parameters(), lr=self.lr)
+
+        optimizer_grouped_parameters = util.get_optimizer_grouped_parameters(model, self.lr)
+        # optimizer = AdamW(model.parameters(), lr=self.lr)
+        optimizer = torch.optim.AdamW(
+            optimizer_grouped_parameters, lr=self.lr, eps=1e-8, weight_decay=0
+        )
         global_idx = 0
         best_scores = {'F1': -1.0, 'EM': -1.0}
-        tbx = SummaryWriter(self.save_dir)
+        tensorboard_writer = SummaryWriter(self.save_dir)
 
         for epoch_num in range(self.num_epochs):
             self.log.info(f'Epoch: {epoch_num}')
             with torch.enable_grad(), tqdm(total=len(train_dataloader.dataset)) as progress_bar:
                 for batch in train_dataloader:
-                    optim.zero_grad()
+                    optimizer.zero_grad()
                     model.train()
                     input_ids = batch['input_ids'].to(device)
                     attention_mask = batch['attention_mask'].to(device)
@@ -215,20 +217,23 @@ class Trainer():
                                     end_positions=end_positions)
                     loss = outputs[0]
                     loss.backward()
-                    optim.step()
+
+                    # TODO - add scheduler.step()
+                    optimizer.step()
+
                     progress_bar.update(len(input_ids))
                     progress_bar.set_postfix(epoch=epoch_num, NLL=loss.item())
-                    tbx.add_scalar('train/NLL', loss.item(), global_idx)
+                    tensorboard_writer.add_scalar('train/NLL', loss.item(), global_idx)
                     if (global_idx % self.eval_every) == 0:
                         self.log.info(f'Evaluating at step {global_idx}...')
                         preds, curr_score = self.evaluate(model, eval_dataloader, val_dict, return_preds=True)
                         results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in curr_score.items())
                         self.log.info('Visualizing in TensorBoard...')
                         for k, v in curr_score.items():
-                            tbx.add_scalar(f'val/{k}', v, global_idx)
+                            tensorboard_writer.add_scalar(f'val/{k}', v, global_idx)
                         self.log.info(f'Eval {results_str}')
                         if self.visualize_predictions:
-                            util.visualize(tbx,
+                            util.visualize(tensorboard_writer,
                                            pred_dict=preds,
                                            gold_dict=val_dict,
                                            step=global_idx,
@@ -240,8 +245,9 @@ class Trainer():
                     global_idx += 1
         return best_scores
 
+
 def get_dataset(args, datasets, data_dir, tokenizer, split_name):
-    datasets = datasets.split(',')
+    datasets = datasets.split(',')  # ['squad', 'nat_questions', 'newsqa']
     dataset_dict = None
     dataset_name=''
     for dataset in datasets:
@@ -250,6 +256,7 @@ def get_dataset(args, datasets, data_dir, tokenizer, split_name):
         dataset_dict = util.merge(dataset_dict, dataset_dict_curr)
     data_encodings = read_and_process(args, tokenizer, dataset_dict, data_dir, dataset_name, split_name)
     return util.QADataset(data_encodings, train=(split_name=='train')), dataset_dict
+
 
 def main():
     # define parser and arguments

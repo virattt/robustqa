@@ -222,6 +222,13 @@ def read_squad(path):
             all_answers = [data_dict['answer'][idx] for idx in ex_ids]
             data_dict_collapsed['answer'].append({'answer_start': [answer['answer_start'] for answer in all_answers],
                                                   'text': [answer['text'] for answer in all_answers]})
+
+    # print()
+    # print("------------")
+    # print("path: {}, data_dict_collapsed['context']: {}".format(path, len(data_dict_collapsed['context'])))
+    # print("path: {}, data_dict_collapsed['question']: {}".format(path, len(data_dict_collapsed['question'])))
+    # print("path: {}, data_dict_collapsed['answer']: {}".format(path, len(data_dict_collapsed['answer'])))
+
     return data_dict_collapsed
 
 def add_token_positions(encodings, answers, tokenizer):
@@ -464,3 +471,21 @@ def compute_f1(a_gold, a_pred):
     recall = 1.0 * num_same / len(gold_toks)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
+
+
+def get_optimizer_grouped_parameters(model, learning_rate):
+    no_decay = ["bias", "LayerNorm.weight"]
+    # if args.layerwise_learning_rate_decay == 1.0:
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "weight_decay": 0,
+            "lr": learning_rate,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "weight_decay": 0.0,
+            "lr": learning_rate,
+        },
+    ]
+    return optimizer_grouped_parameters
