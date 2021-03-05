@@ -177,7 +177,7 @@ class QADataset(Dataset):
         self.encodings = encodings
         self.keys = ['input_ids', 'attention_mask']
         if train:
-            self.keys += ['start_positions', 'end_positions']
+            self.keys += ['start_positions', 'end_positions', 'labels']
         assert(all(key in self.encodings for key in self.keys))
 
     def __getitem__(self, idx):
@@ -186,12 +186,16 @@ class QADataset(Dataset):
     def __len__(self):
         return len(self.encodings['input_ids'])
 
-def read_squad(path):
+def read_squad(path, label=None):
     path = Path(path)
     with open(path, 'rb') as f:
         squad_dict = json.load(f)
     data_dict = {'question': [], 'context': [], 'id': [], 'answer': []}
-    for group in squad_dict['data']:
+    for index, group in enumerate(squad_dict['data']):
+        # # TODO - remove for full training
+        # if index == 2:
+        #     break
+
         for passage in group['paragraphs']:
             context = passage['context']
             for qa in passage['qas']:
@@ -210,7 +214,7 @@ def read_squad(path):
     for idx, qid in enumerate(data_dict['id']):
         id_map[qid].append(idx)
 
-    data_dict_collapsed = {'question': [], 'context': [], 'id': []}
+    data_dict_collapsed = {'question': [], 'context': [], 'id': [], 'labels': []}
     if data_dict['answer']:
         data_dict_collapsed['answer'] = []
     for qid in id_map:
@@ -222,74 +226,70 @@ def read_squad(path):
             all_answers = [data_dict['answer'][idx] for idx in ex_ids]
             data_dict_collapsed['answer'].append({'answer_start': [answer['answer_start'] for answer in all_answers],
                                                   'text': [answer['text'] for answer in all_answers]})
-
-    # print()
-    # print("------------")
-    # print("path: {}, data_dict_collapsed['context']: {}".format(path, len(data_dict_collapsed['context'])))
-    # print("path: {}, data_dict_collapsed['question']: {}".format(path, len(data_dict_collapsed['question'])))
-    # print("path: {}, data_dict_collapsed['answer']: {}".format(path, len(data_dict_collapsed['answer'])))
+        if label is not None:
+            data_dict_collapsed['labels'].append(label)
 
     return data_dict_collapsed
 
-def add_token_positions(encodings, answers, tokenizer):
-    start_positions = []
-    end_positions = []
-    for i in range(len(answers)):
-        start_positions.append(encodings.char_to_token(i, answers[i]['answer_start']))
-        end_positions.append(encodings.char_to_token(i, answers[i]['answer_end']))
+# def add_token_positions(encodings, answers, tokenizer):
+#     start_positions = []
+#     end_positions = []
+#     for i in range(len(answers)):
+#         start_positions.append(encodings.char_to_token(i, answers[i]['answer_start']))
+#         end_positions.append(encodings.char_to_token(i, answers[i]['answer_end']))
+#
+#         # if start position is None, the answer passage has been truncated
+#         if start_positions[-1] is None:
+#             start_positions[-1] = tokenizer.model_max_length
+#
+#         # if end position is None, the 'char_to_token' function points to the space before the correct token - > add + 1
+#         if end_positions[-1] is None:
+#             end_positions[-1] = encodings.char_to_token(i, answers[i]['answer_end'] + 1)
+#     encodings.update({'start_positions': start_positions, 'end_positions': end_positions})
 
-        # if start position is None, the answer passage has been truncated
-        if start_positions[-1] is None:
-            start_positions[-1] = tokenizer.model_max_length
 
-        # if end position is None, the 'char_to_token' function points to the space before the correct token - > add + 1
-        if end_positions[-1] is None:
-            end_positions[-1] = encodings.char_to_token(i, answers[i]['answer_end'] + 1)
-    encodings.update({'start_positions': start_positions, 'end_positions': end_positions})
+# def add_end_idx(answers, contexts):
+#     for answer, context in zip(answers, contexts):
+#         gold_text = answer['text']
+#         start_idx = answer['answer_start']
+#         end_idx = start_idx + len(gold_text)
+#
+#         # sometimes squad answers are off by a character or two – fix this
+#         if context[start_idx:end_idx] == gold_text:
+#             answer['answer_end'] = end_idx
+#         elif context[start_idx-1:end_idx-1] == gold_text:
+#             answer['answer_start'] = start_idx - 1
+#             answer['answer_end'] = end_idx - 1     # When the gold label is off by one character
+#         elif context[start_idx-2:end_idx-2] == gold_text:
+#             answer['answer_start'] = start_idx - 2
+#             answer['answer_end'] = end_idx - 2     # When the gold label is off by two characters
 
-
-def add_end_idx(answers, contexts):
-    for answer, context in zip(answers, contexts):
-        gold_text = answer['text']
-        start_idx = answer['answer_start']
-        end_idx = start_idx + len(gold_text)
-
-        # sometimes squad answers are off by a character or two – fix this
-        if context[start_idx:end_idx] == gold_text:
-            answer['answer_end'] = end_idx
-        elif context[start_idx-1:end_idx-1] == gold_text:
-            answer['answer_start'] = start_idx - 1
-            answer['answer_end'] = end_idx - 1     # When the gold label is off by one character
-        elif context[start_idx-2:end_idx-2] == gold_text:
-            answer['answer_start'] = start_idx - 2
-            answer['answer_end'] = end_idx - 2     # When the gold label is off by two characters
-
-def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list):
-    """Convert predictions to tokens from the context.
-
-    Args:
-        eval_dict (dict): Dictionary with eval info for the dataset. This is
-            used to perform the mapping from IDs and indices to actual text.
-        qa_id (int): List of QA example IDs.
-        y_start_list (list): List of start predictions.
-        y_end_list (list): List of end predictions.
-        no_answer (bool): Questions can have no answer. E.g., SQuAD 2.0.
-
-    Returns:
-        pred_dict (dict): Dictionary index IDs -> predicted answer text.
-        sub_dict (dict): Dictionary UUIDs -> predicted answer text (submission).
-    """
-    pred_dict = {}
-    sub_dict = {}
-    for qid, y_start, y_end in zip(qa_id, y_start_list, y_end_list):
-        context = eval_dict[str(qid)]["context"]
-        spans = eval_dict[str(qid)]["spans"]
-        uuid = eval_dict[str(qid)]["uuid"]
-        start_idx = spans[y_start][0]
-        end_idx = spans[y_end][1]
-        pred_dict[str(qid)] = context[start_idx: end_idx]
-        sub_dict[uuid] = context[start_idx: end_idx]
-    return pred_dict, sub_dict
+# def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list):
+#     """Convert predictions to tokens from the context.
+#
+#     Args:
+#         eval_dict (dict): Dictionary with eval info for the dataset. This is
+#             used to perform the mapping from IDs and indices to actual text.
+#         qa_id (int): List of QA example IDs.
+#         y_start_list (list): List of start predictions.
+#         y_end_list (list): List of end predictions.
+#         no_answer (bool): Questions can have no answer. E.g., SQuAD 2.0.
+#
+#     Returns:
+#         pred_dict (dict): Dictionary index IDs -> predicted answer text.
+#         sub_dict (dict): Dictionary UUIDs -> predicted answer text (submission).
+#     """
+#     pred_dict = {}
+#     sub_dict = {}
+#     for qid, y_start, y_end in zip(qa_id, y_start_list, y_end_list):
+#         context = eval_dict[str(qid)]["context"]
+#         spans = eval_dict[str(qid)]["spans"]
+#         uuid = eval_dict[str(qid)]["uuid"]
+#         start_idx = spans[y_start][0]
+#         end_idx = spans[y_end][1]
+#         pred_dict[str(qid)] = context[start_idx: end_idx]
+#         sub_dict[uuid] = context[start_idx: end_idx]
+#     return pred_dict, sub_dict
 
 def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
     if not ground_truths:

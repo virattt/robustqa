@@ -156,7 +156,7 @@ class Trainer():
         all_start_logits = []
         all_end_logits = []
         with torch.no_grad(), \
-                tqdm(total=len(data_loader.dataset)) as progress_bar:
+                tqdm(total=len(data_loader.dataset), position=0, leave=True) as progress_bar:
             for batch in data_loader:
                 # Setup for forward
                 input_ids = batch['input_ids'].to(device)
@@ -195,16 +195,14 @@ class Trainer():
 
         optimizer_grouped_parameters = util.get_optimizer_grouped_parameters(model, self.lr)
         # optimizer = AdamW(model.parameters(), lr=self.lr)
-        optimizer = torch.optim.AdamW(
-            optimizer_grouped_parameters, lr=self.lr, eps=1e-8, weight_decay=0
-        )
+        optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8, weight_decay=0)
         global_idx = 0
         best_scores = {'F1': -1.0, 'EM': -1.0}
         tensorboard_writer = SummaryWriter(self.save_dir)
 
         for epoch_num in range(self.num_epochs):
             self.log.info(f'Epoch: {epoch_num}')
-            with torch.enable_grad(), tqdm(total=len(train_dataloader.dataset)) as progress_bar:
+            with torch.enable_grad(), tqdm(total=len(train_dataloader.dataset), position=0, leave=True) as progress_bar:
                 for batch in train_dataloader:
                     optimizer.zero_grad()
                     model.train()
