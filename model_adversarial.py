@@ -2,15 +2,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import DistilBertForQuestionAnswering
+from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
 
 class AdversarialModel(nn.Module):
 
-    def __init__(self, args, hidden_size=768, num_classes=6, discriminator_lambda=0.01):
+    def __init__(self, args, hidden_size=768, num_classes=6, discriminator_lambda=0.01, checkpoint_path: str = None):
         super(AdversarialModel, self).__init__()
 
         # Load models
-        self.qa_model = DistilBertForQuestionAnswering.from_pretrained('distilbert-base-uncased')
+        if checkpoint_path:
+            self.qa_model = DistilBertForQuestionAnswering.from_pretrained(checkpoint_path)
+        else:
+            self.qa_model = DistilBertForQuestionAnswering.from_pretrained('distilbert-base-uncased')
+
         self.discriminator_model = DiscriminatorModel()
 
         # Set fields
@@ -37,7 +42,8 @@ class AdversarialModel(nn.Module):
             qa_loss = self.forward_qa(input_ids, attention_mask, start_positions, end_positions)
             return qa_loss
         elif model_type == 'discriminator_model':
-            print('discriminator_model')
+            discriminator_loss = self.forward_discriminator(input_ids, attention_mask, start_positions, end_positions, labels)
+            return discriminator_loss
 
     def forward_qa(self, input_ids, attention_mask, start_positions, end_positions):
         # Do forward pass on DistilBERT
@@ -45,8 +51,7 @@ class AdversarialModel(nn.Module):
                                 attention_mask=attention_mask,
                                 start_positions=start_positions,
                                 end_positions=end_positions,
-                                output_hidden_states=True
-                                )
+                                output_hidden_states=True)
 
         # Get final hidden state from DistilBERT output
         last_hidden_state = outputs["hidden_states"][-1]
@@ -66,18 +71,26 @@ class AdversarialModel(nn.Module):
         start_logits = start_logits.squeeze(-1)
         end_logits = end_logits.squeeze(-1)
 
-        # Sometimes the start/end positions are outside our model inputs, we ignore these terms
-        ignored_index = start_logits.size(1)
-        start_positions.clamp_(0, ignored_index)
-        end_positions.clamp_(0, ignored_index)
+        total_loss = None
+        if start_positions is not None and end_positions is not None:
+            # Sometimes the start/end positions are outside our model inputs, we ignore these terms
+            ignored_index = start_logits.size(1)
+            start_positions.clamp_(0, ignored_index)
+            end_positions.clamp_(0, ignored_index)
 
-        # Compute total loss by combining QA loss with KLD loss
-        loss_fct = nn.CrossEntropyLoss(ignore_index=ignored_index)
-        start_loss = loss_fct(start_logits, start_positions)
-        end_loss = loss_fct(end_logits, end_positions)
-        qa_loss = (start_loss + end_loss) / 2
-        total_loss = qa_loss + kld
-        return total_loss
+            # Compute total loss by combining QA loss with KLD loss
+            loss_fct = nn.CrossEntropyLoss(ignore_index=ignored_index)
+            start_loss = loss_fct(start_logits, start_positions)
+            end_loss = loss_fct(end_logits, end_positions)
+            qa_loss = (start_loss + end_loss) / 2
+            total_loss = qa_loss + kld
+        return QuestionAnsweringModelOutput(
+            loss=total_loss,
+            start_logits=start_logits,
+            end_logits=end_logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
     def forward_discriminator(self, input_ids, attention_mask, start_positions, end_positions, labels):
         with torch.no_grad():
@@ -93,7 +106,7 @@ class AdversarialModel(nn.Module):
             last_hidden_state = outputs["hidden_states"][-1]
             hidden = last_hidden_state[:, 0]  # same as cls_embedding
 
-        log_prob = self.discriminator(hidden.detach())
+        log_prob = self.discriminator_model(hidden.detach())
         criterion = nn.NLLLoss()
         loss = criterion(log_prob, labels)
         return loss
@@ -101,7 +114,6 @@ class AdversarialModel(nn.Module):
     def save(self, path: str):
         # TODO - look at mrqa trainer.py's save_model method
         self.qa_model.save_pretrained(path)
-
 
 class DiscriminatorModel(nn.Module):
 
