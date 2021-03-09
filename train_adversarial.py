@@ -39,9 +39,10 @@ class Trainer:
         model.to(device)
 
         # Create optimizers
-        optimizer_params = util.get_optimizer_grouped_parameters(model, self.lr)
-        qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
-        discriminator_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
+        # optimizer_params = util.get_optimizer_grouped_parameters(model, self.lr)
+        # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
+        qa_optimizer = torch.optim.AdamW(model.qa_model.parameters(), lr=self.lr)
+        discriminator_optimizer = torch.optim.AdamW(model.discriminator_model.parameters(), lr=self.lr)
 
         # Initialize training loop vars
         avg_qa_loss = 0
@@ -52,7 +53,7 @@ class Trainer:
 
         for epoch in range(self.num_epochs):
             self.log.info("Epoch: {}".format(epoch))
-            with torch.enable_grad(), tqdm(total=len(train_dataloader.dataset), position=0, leave=True) as progress_bar:
+            with torch.enable_grad(), tqdm(total=len(train_dataloader.dataset)) as progress_bar:
                 for batch in train_dataloader:
                     model.train()
                     input_ids = batch['input_ids'].to(device)
@@ -113,7 +114,7 @@ class Trainer:
                             best_scores = curr_score
                             self.save(model)
                     global_idx += 1
-                return best_scores
+        return best_scores
 
     def evaluate(self, model, data_loader, data_dict, return_preds=False, split='validation'):
         device = self.device
@@ -123,7 +124,7 @@ class Trainer:
         all_start_logits = []
         all_end_logits = []
         with torch.no_grad(), \
-             tqdm(total=len(data_loader.dataset), position=0, leave=True) as progress_bar:
+             tqdm(total=len(data_loader.dataset)) as progress_bar:
             for batch in data_loader:
                 # Setup for forward
                 input_ids = batch['input_ids'].to(device)
