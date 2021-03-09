@@ -70,7 +70,6 @@ class Trainer:
                     qa_loss = outputs[0]
                     qa_loss.backward()
                     avg_qa_loss = self.cal_running_avg_loss(qa_loss.item(), avg_qa_loss)
-                    print(f'avg_qa_loss: {avg_qa_loss}')
 
                     qa_optimizer.step()
                     qa_optimizer.zero_grad()
@@ -88,13 +87,12 @@ class Trainer:
 
                     avg_discriminator_loss = self.cal_running_avg_loss(discriminator_loss.item(),
                                                                        avg_discriminator_loss)
-                    print(f'avg_discriminator_loss: {avg_discriminator_loss}')
-
                     discriminator_optimizer.step()
                     discriminator_optimizer.zero_grad()
 
                     progress_bar.update(len(input_ids))
                     progress_bar.set_postfix(epoch=epoch, NLL=qa_loss.item())
+                    tensorboard_writer.add_scalar('train/NLL', qa_loss.item(), global_idx)
 
                     if (global_idx % self.eval_every) == 0:
                         self.log.info(f'Evaluating at step {global_idx}...')
