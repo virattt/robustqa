@@ -41,8 +41,11 @@ class Trainer:
         # Create optimizers
         # optimizer_params = util.get_optimizer_grouped_parameters(model, self.lr)
         # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
-        qa_optimizer = torch.optim.AdamW(model.qa_model.parameters(), lr=self.lr)
-        discriminator_optimizer = torch.optim.AdamW(model.discriminator_model.parameters(), lr=self.lr)
+        qa_params = list(model.qa_model.named_parameters()) + list(model.qa_outputs.named_parameters())
+        dis_params = list(model.discriminator_model.named_parameters())
+
+        qa_optimizer = util.get_opt(qa_params, lr=self.lr)
+        discriminator_optimizer = util.get_opt(dis_params, lr=self.lr)
 
         # Initialize training loop vars
         avg_qa_loss = 0
@@ -67,7 +70,6 @@ class Trainer:
                                     end_positions=end_positions,
                                     model_type='qa_model')
 
-                    # qa_loss = outputs[0].mean()
                     qa_loss = outputs[0]
                     qa_loss.backward()
                     avg_qa_loss = self.cal_running_avg_loss(qa_loss.item(), avg_qa_loss)
@@ -131,7 +133,7 @@ class Trainer:
                 attention_mask = batch['attention_mask'].to(device)
 
                 # Forward
-                outputs = model(input_ids, attention_mask=attention_mask, model_type='qa_model')
+                outputs = model(input_ids, attention_mask=attention_mask)
                 start_logits, end_logits = outputs.start_logits, outputs.end_logits
 
                 all_start_logits.append(start_logits)

@@ -44,6 +44,19 @@ class AdversarialModel(nn.Module):
         elif model_type == 'discriminator_model':
             discriminator_loss = self.forward_discriminator(input_ids, attention_mask, start_positions, end_positions, labels)
             return discriminator_loss
+        else:
+            # For evaluation
+            outputs = self.qa_model(input_ids, attention_mask=attention_mask, output_hidden_states=True)
+            last_hidden_state = outputs["hidden_states"][-1]
+            logits = self.qa_outputs(last_hidden_state)
+            start_logits, end_logits = logits.split(1, dim=-1)
+            start_logits = start_logits.squeeze(-1)
+            end_logits = end_logits.squeeze(-1)
+
+            return QuestionAnsweringModelOutput(
+                start_logits=start_logits,
+                end_logits=end_logits
+            )
 
     def forward_qa(self, input_ids, attention_mask, start_positions, end_positions):
         # Do forward pass on DistilBERT
@@ -55,15 +68,6 @@ class AdversarialModel(nn.Module):
 
         # Get final hidden state from DistilBERT output
         last_hidden_state = outputs["hidden_states"][-1]
-        hidden = last_hidden_state[:, 0]  # same as cls_embedding
-
-        # Use the final hidden state to get the targets from the discriminator model
-        log_prob = self.discriminator_model(hidden)
-        targets = torch.ones_like(log_prob) * (1 / self.num_classes)
-
-        # Compute KL loss
-        kl_criterion = nn.KLDivLoss(reduction="batchmean")
-        kld = self.discriminator_lambda * kl_criterion(log_prob, targets)
 
         # Get output layer logits (start and end)
         logits = self.qa_outputs(last_hidden_state)
@@ -77,6 +81,15 @@ class AdversarialModel(nn.Module):
             ignored_index = start_logits.size(1)
             start_positions.clamp_(0, ignored_index)
             end_positions.clamp_(0, ignored_index)
+
+            # Use the final hidden state to get the targets from the discriminator model
+            hidden = last_hidden_state[:, 0]  # same as cls_embedding
+            log_prob = self.discriminator_model(hidden)
+            targets = torch.ones_like(log_prob) * (1 / self.num_classes)
+
+            # Compute KL loss
+            kl_criterion = nn.KLDivLoss(reduction="batchmean")
+            kld = self.discriminator_lambda * kl_criterion(log_prob, targets)
 
             # Compute total loss by combining QA loss with KLD loss
             loss_fct = nn.CrossEntropyLoss(ignore_index=ignored_index)
