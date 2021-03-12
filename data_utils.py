@@ -15,7 +15,7 @@ def get_dataset(args, datasets, data_dir, tokenizer, split_name):
         dataset_dict_curr = util.read_squad(f'{data_dir}/{dataset}', label)
         dataset_dict = util.merge(dataset_dict, dataset_dict_curr)
     data_encodings = read_and_process(args, tokenizer, dataset_dict, data_dir, dataset_name, split_name)
-    return util.QADataset(data_encodings, train=(split_name == 'train')), dataset_dict
+    return util.QADatasetAdversarial(data_encodings, train=(split_name == 'train')), dataset_dict
 
 
 def read_and_process(args, tokenizer, dataset_dict, dir_name, dataset_name, split):

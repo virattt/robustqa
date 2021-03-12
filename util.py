@@ -172,7 +172,23 @@ class AverageMeter:
         self.sum += val * num_samples
         self.avg = self.sum / self.count
 
+
 class QADataset(Dataset):
+    def __init__(self, encodings, train=True):
+        self.encodings = encodings
+        self.keys = ['input_ids', 'attention_mask']
+        if train:
+            self.keys += ['start_positions', 'end_positions']
+        assert(all(key in self.encodings for key in self.keys))
+
+    def __getitem__(self, idx):
+        return {key : torch.tensor(self.encodings[key][idx]) for key in self.keys}
+
+    def __len__(self):
+        return len(self.encodings['input_ids'])
+
+
+class QADatasetAdversarial(Dataset):
     def __init__(self, encodings, train=True):
         self.encodings = encodings
         self.keys = ['input_ids', 'attention_mask']
