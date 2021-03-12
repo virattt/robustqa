@@ -11,7 +11,7 @@ from tqdm import tqdm
 from transformers import DistilBertTokenizerFast
 
 import data_utils
-import util
+import util_adversarial
 from args import get_train_test_args
 from model_adversarial import AdversarialModel
 
@@ -39,13 +39,13 @@ class Trainer:
         model.to(device)
 
         # Create optimizers
-        # optimizer_params = util.get_optimizer_grouped_parameters(model, self.lr)
+        # optimizer_params = util_adversarial.get_optimizer_grouped_parameters(model, self.lr)
         # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
         qa_params = list(model.qa_model.named_parameters()) + list(model.qa_outputs.named_parameters())
         dis_params = list(model.discriminator_model.named_parameters())
 
-        qa_optimizer = util.get_opt(qa_params, lr=self.lr)
-        discriminator_optimizer = util.get_opt(dis_params, lr=self.lr)
+        qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)
+        discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)
 
         # Initialize training loop vars
         avg_qa_loss = 0
@@ -106,7 +106,7 @@ class Trainer:
                             tensorboard_writer.add_scalar(f'val/{k}', v, global_idx)
                         self.log.info(f'Eval {results_str}')
                         if self.visualize_predictions:
-                            util.visualize(tensorboard_writer,
+                            util_adversarial.visualize(tensorboard_writer,
                                            pred_dict=preds,
                                            gold_dict=val_dict,
                                            step=global_idx,
@@ -146,11 +146,11 @@ class Trainer:
         # Get F1 and EM scores
         start_logits = torch.cat(all_start_logits).cpu().numpy()
         end_logits = torch.cat(all_end_logits).cpu().numpy()
-        preds = util.postprocess_qa_predictions(data_dict,
+        preds = util_adversarial.postprocess_qa_predictions(data_dict,
                                                 data_loader.dataset.encodings,
                                                 (start_logits, end_logits))
         if split == 'validation':
-            results = util.eval_dicts(data_dict, preds)
+            results = util_adversarial.eval_dicts(data_dict, preds)
             results_list = [('F1', results['F1']),
                             ('EM', results['EM'])]
         else:
@@ -173,7 +173,7 @@ class Trainer:
 def main():
     # Get command-line args and set seed
     args = get_train_test_args()
-    util.set_seed(args.seed)
+    util_adversarial.set_seed(args.seed)
 
     # Load model
     model = AdversarialModel(args)
@@ -183,10 +183,10 @@ def main():
         # Make /save directory
         if not os.path.exists(args.save_dir):
             os.makedirs(args.save_dir)
-        args.save_dir = util.get_save_dir(args.save_dir, args.run_name)
+        args.save_dir = util_adversarial.get_save_dir(args.save_dir, args.run_name)
 
         # Get logger
-        log = util.get_logger(args.save_dir, 'log_train')
+        log = util_adversarial.get_logger(args.save_dir, 'log_train')
         log.info(f'Args: {json.dumps(vars(args), indent=4, sort_keys=True)}')
 
         # Set the device to cuda if GPU available
@@ -212,7 +212,7 @@ def main():
     if args.do_eval:
         args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         split_name = 'test' if 'test' in args.eval_dir else 'validation'
-        log = util.get_logger(args.save_dir, f'log_{split_name}')
+        log = util_adversarial.get_logger(args.save_dir, f'log_{split_name}')
         checkpoint_path = os.path.join(args.save_dir, 'checkpoint')
 
         # Load model
