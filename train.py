@@ -5,6 +5,7 @@ from collections import OrderedDict
 import torch
 import csv
 import util
+import util_adversarial
 from transformers import DistilBertTokenizerFast
 from transformers import DistilBertForQuestionAnswering
 from transformers import AdamW
@@ -193,9 +194,10 @@ class Trainer():
         device = self.device
         model.to(device)
 
-        # optimizer_grouped_parameters = util.get_optimizer_grouped_parameters(model, self.lr)
-        optimizer = AdamW(model.parameters(), lr=self.lr)
-        # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8, weight_decay=0)
+        optimizer_params = util_adversarial.get_optimizer_grouped_parameters(model, self.lr)
+        # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
+        # optimizer = AdamW(model.parameters(), lr=self.lr)
+        optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
         global_idx = 0
         best_scores = {'F1': -1.0, 'EM': -1.0}
         tensorboard_writer = SummaryWriter(self.save_dir)
