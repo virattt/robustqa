@@ -193,7 +193,7 @@ class Trainer():
         device = self.device
         model.to(device)
 
-        optimizer_grouped_parameters = util.get_optimizer_grouped_parameters(model, self.lr)
+        # optimizer_grouped_parameters = util.get_optimizer_grouped_parameters(model, self.lr)
         optimizer = AdamW(model.parameters(), lr=self.lr)
         # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8, weight_decay=0)
         global_idx = 0
