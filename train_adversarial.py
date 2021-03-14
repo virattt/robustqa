@@ -209,6 +209,39 @@ def main():
         trainer = Trainer(args, log)
         trainer.train(model, train_loader, val_loader, val_dict)
 
+    if args.continue_to_eval:
+        args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        split_name = 'test' if 'test' in args.eval_dir else 'validation'
+        log = util_adversarial.get_logger(args.save_dir, f'log_{split_name}')
+
+        # Load model
+        model.to(args.device)
+
+        # Load eval data
+        eval_dataset, eval_dict = data_utils.get_dataset(args, args.eval_datasets, args.eval_dir, tokenizer, split_name)
+        eval_loader = DataLoader(eval_dataset,
+                                 batch_size=args.batch_size,
+                                 sampler=SequentialSampler(eval_dataset))
+
+        # Evaluate!!!
+        trainer = Trainer(args, log)
+        eval_preds, eval_scores = trainer.evaluate(model,
+                                                   data_loader=eval_loader,
+                                                   data_dict=eval_dict,
+                                                   return_preds=True,
+                                                   split=split_name)
+        results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in eval_scores.items())
+        log.info(f'Eval {results_str}')
+
+        # Write submission file
+        sub_path = os.path.join(args.save_dir, split_name + '_' + args.sub_file)
+        log.info(f'Writing submission file to {sub_path}...')
+        with open(sub_path, 'w', newline='', encoding='utf-8') as csv_fh:
+            csv_writer = csv.writer(csv_fh, delimiter=',')
+            csv_writer.writerow(['Id', 'Predicted'])
+            for uuid in sorted(eval_preds):
+                csv_writer.writerow([uuid, eval_preds[uuid]])
+
     if args.do_eval:
         args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         split_name = 'test' if 'test' in args.eval_dir else 'validation'
