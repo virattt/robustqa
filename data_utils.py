@@ -3,7 +3,7 @@ import os
 import torch
 from tqdm import tqdm
 
-import util
+import util_adversarial
 
 
 def get_dataset(args, datasets, data_dir, tokenizer, split_name):
@@ -12,22 +12,22 @@ def get_dataset(args, datasets, data_dir, tokenizer, split_name):
     dataset_name = ''
     for label, dataset in enumerate(datasets):
         dataset_name += f'_{dataset}'
-        dataset_dict_curr = util.read_squad(f'{data_dir}/{dataset}', label)
-        dataset_dict = util.merge(dataset_dict, dataset_dict_curr)
+        dataset_dict_curr = util_adversarial.read_squad(f'{data_dir}/{dataset}', label)
+        dataset_dict = util_adversarial.merge(dataset_dict, dataset_dict_curr)
     data_encodings = read_and_process(args, tokenizer, dataset_dict, data_dir, dataset_name, split_name)
-    return util.QADatasetAdversarial(data_encodings, train=(split_name == 'train')), dataset_dict
+    return util_adversarial.QADatasetAdversarial(data_encodings, train=(split_name == 'train')), dataset_dict
 
 
 def read_and_process(args, tokenizer, dataset_dict, dir_name, dataset_name, split):
     cache_path = f'{dir_name}/{dataset_name}_encodings.pt'
     if os.path.exists(cache_path) and not args.recompute_features:
-        tokenized_examples = util.load_pickle(cache_path)
+        tokenized_examples = util_adversarial.load_pickle(cache_path)
     else:
         if split == 'train':
             tokenized_examples = prepare_train_data(dataset_dict, tokenizer)
         else:
             tokenized_examples = prepare_eval_data(dataset_dict, tokenizer)
-        util.save_pickle(tokenized_examples, cache_path)
+        util_adversarial.save_pickle(tokenized_examples, cache_path)
     return tokenized_examples
 
 
