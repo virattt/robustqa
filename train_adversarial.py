@@ -25,6 +25,7 @@ class Trainer:
         self.num_epochs: int = args.num_epochs
         self.num_visuals: int = args.num_visuals
         self.path: str = os.path.join(args.save_dir, 'checkpoint')
+        self.path_qa_outputs: str = os.path.join(args.save_dir, 'qa_output_state')
         self.save_dir: str = args.save_dir
         self.visualize_predictions: bool = args.visualize_predictions
 
@@ -33,6 +34,7 @@ class Trainer:
 
     def save(self, model: AdversarialModel):
         model.save(self.path)
+        model.save_qa_output_model(self.path_qa_outputs)
 
     def train(self, model: AdversarialModel, train_dataloader, eval_dataloader, val_dict):
         device = self.device
@@ -231,7 +233,7 @@ def main():
                                                    return_preds=True,
                                                    split=split_name)
         results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in eval_scores.items())
-        log.info(f'Eval {results_str}')
+        log.info(f'Eval in continue_to_eval {results_str}')
 
         # Write submission file
         sub_path = os.path.join(args.save_dir, split_name + '_' + args.sub_file)
@@ -247,9 +249,12 @@ def main():
         split_name = 'test' if 'test' in args.eval_dir else 'validation'
         log = util_adversarial.get_logger(args.save_dir, f'log_{split_name}')
         checkpoint_path = os.path.join(args.save_dir, 'checkpoint')
+        checkpoint_path_qa_output = os.path.join(args.save_dir, 'qa_output_state')
 
         # Load model
-        model = AdversarialModel(args, checkpoint_path=checkpoint_path)
+        model = AdversarialModel(args)
+        model.load(checkpoint_path)
+        model.load_qa_output_model(checkpoint_path_qa_output)
         model.to(args.device)
 
         # Load eval data

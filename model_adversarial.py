@@ -9,7 +9,7 @@ class AdversarialModel(nn.Module):
 
     def __init__(self, args, hidden_size=768, num_classes=6, discriminator_lambda=0.01, checkpoint_path: str = None):
         super(AdversarialModel, self).__init__()
-
+        self.args = args
         # Load models
         if checkpoint_path:
             self.qa_model = DistilBertForQuestionAnswering.from_pretrained(checkpoint_path)
@@ -125,8 +125,18 @@ class AdversarialModel(nn.Module):
         return loss
 
     def save(self, path: str):
-        # TODO - look at mrqa trainer.py's save_model method
         self.qa_model.save_pretrained(path)
+
+    def save_qa_output_model(self, path: str):
+        print(f'BEFORE load: self.qa_outputs.state_dict(): {self.qa_outputs.state_dict()}')
+        torch.save(self.qa_outputs.state_dict(), path)
+
+    def load(self, path: str):
+        self.qa_model.from_pretrained(path)
+
+    def load_qa_output_model(self, path: str):
+        self.qa_outputs.load_state_dict(torch.load(path))
+        print(f'AFTER load: self.qa_outputs.state_dict(): {self.qa_outputs.state_dict()}')
 
 class DiscriminatorModel(nn.Module):
 
