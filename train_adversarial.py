@@ -36,6 +36,22 @@ class Trainer:
         model.save(self.path)
         model.save_qa_output_model(self.path_qa_outputs)
 
+    def save_model(self, model, epoch, loss):
+        loss = round(loss, 3)
+        model_type = "adv"
+
+        save_path = os.path.join(self.save_dir, "saved_model")
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+
+        save_file = os.path.join(save_path, "{}_{}_{:.3f}.pt".format(model_type, epoch, loss))
+        save_file_config = os.path.join(save_path, "{}_config_{}_{:.3f}.json".format(model_type, epoch, loss))
+
+        model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+
+        torch.save(model_to_save.state_dict(), save_file)
+        model_to_save.qa_model.config.to_json_file(save_file_config)
+
     def train(self, model: AdversarialModel, train_dataloader, eval_dataloader, val_dict):
         device = self.device
         model.to(device)
@@ -74,7 +90,7 @@ class Trainer:
 
                     qa_loss = outputs[0]
                     qa_loss.backward()
-                    avg_qa_loss = self.cal_running_avg_loss(qa_loss.item(), avg_qa_loss)
+                    # avg_qa_loss = self.cal_running_avg_loss(qa_loss.item(), avg_qa_loss)
 
                     qa_optimizer.step()
                     qa_optimizer.zero_grad()
@@ -90,8 +106,8 @@ class Trainer:
                     discriminator_loss = discriminator_loss.mean()
                     discriminator_loss.backward()
 
-                    avg_discriminator_loss = self.cal_running_avg_loss(discriminator_loss.item(),
-                                                                       avg_discriminator_loss)
+                    # avg_discriminator_loss = self.cal_running_avg_loss(discriminator_loss.item(),
+                    #                                                    avg_discriminator_loss)
                     discriminator_optimizer.step()
                     discriminator_optimizer.zero_grad()
 
@@ -116,7 +132,8 @@ class Trainer:
                                            num_visuals=self.num_visuals)
                         if curr_score['F1'] >= best_scores['F1']:
                             best_scores = curr_score
-                            self.save(model)
+                            # self.save(model)
+                            self.save_model(model, epoch, qa_loss.item())
                     global_idx += 1
         return best_scores
 
@@ -252,9 +269,9 @@ def main():
         checkpoint_path_qa_output = os.path.join(args.save_dir, 'qa_output_state')
 
         # Load model
-        model = AdversarialModel(args)
-        model.load(checkpoint_path)
-        model.load_qa_output_model(checkpoint_path_qa_output)
+        model = AdversarialModel(args, load_path=args.saved_model_filename)
+        # model.load(checkpoint_path)
+        # model.load_qa_output_model(checkpoint_path_qa_output)
         model.to(args.device)
 
         # Load eval data

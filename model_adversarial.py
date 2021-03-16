@@ -7,7 +7,7 @@ from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
 class AdversarialModel(nn.Module):
 
-    def __init__(self, args, hidden_size=768, num_classes=6, discriminator_lambda=0.01, checkpoint_path: str = None):
+    def __init__(self, args, hidden_size=768, num_classes=6, discriminator_lambda=0.01, checkpoint_path: str = None, load_path: str = None):
         super(AdversarialModel, self).__init__()
         self.args = args
         # Load models
@@ -26,6 +26,9 @@ class AdversarialModel(nn.Module):
         self.qa_outputs = nn.Linear(hidden_size, 2)
         self.qa_outputs.weight.data.normal_(mean=0.0, std=0.02)
         self.qa_outputs.bias.data.zero_()
+
+        if load_path is not None:
+            self.load_state_dict(torch.load(load_path, map_location=lambda storage, loc: storage))
 
     def forward(self, input_ids, attention_mask,
                 start_positions=None, end_positions=None, labels=None,
