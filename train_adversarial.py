@@ -60,10 +60,10 @@ class Trainer:
         qa_params = list(model.qa_model.named_parameters()) + list(model.qa_outputs.named_parameters())
         dis_params = list(model.discriminator_model.named_parameters())
 
-        # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)                        # with weight decay
-        # discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)            # with weight decay
-        qa_optimizer = torch.optim.AdamW(qa_params, lr=self.lr, weight_decay=0)                 # without weight decay
-        discriminator_optimizer = torch.optim.AdamW(dis_params, lr=self.lr, weight_decay=0)     # without weight decay
+        # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)                                                # with weight decay
+        # discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)                                    # with weight decay
+        qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr, first_decay=0.0, second_decay=0.0)               # without weight decay
+        discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr, first_decay=0.0, second_decay=0.0)   # without weight decay
 
         # Initialize training loop vars
         avg_qa_loss = 0
