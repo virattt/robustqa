@@ -57,13 +57,13 @@ class Trainer:
         model.to(device)
 
         # Create optimizers
-        # optimizer_params = util_adversarial.get_optimizer_grouped_parameters(model, self.lr)
-        # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
         qa_params = list(model.qa_model.named_parameters()) + list(model.qa_outputs.named_parameters())
         dis_params = list(model.discriminator_model.named_parameters())
 
-        qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)
-        discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)
+        # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)                                                # with weight decay
+        # discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)                                    # with weight decay
+        qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr, first_decay=0.0, second_decay=0.0)               # without weight decay
+        discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr, first_decay=0.0, second_decay=0.0)   # without weight decay
 
         # Initialize training loop vars
         avg_qa_loss = 0

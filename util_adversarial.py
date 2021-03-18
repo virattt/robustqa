@@ -507,7 +507,7 @@ def get_optimizer_grouped_parameters(model, learning_rate):
     return optimizer_grouped_parameters
 
 
-def get_opt(param_optimizer, lr):
+def get_opt(param_optimizer, lr, first_decay = 0.01, second_decay = 0.00):
     """
     Hack to remove pooler, which is not used
     Thus it produce None grad that break apex
@@ -516,8 +516,8 @@ def get_opt(param_optimizer, lr):
 
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': first_decay},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': second_decay}
     ]
 
     return torch.optim.AdamW(optimizer_grouped_parameters, lr=lr)
