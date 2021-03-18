@@ -63,8 +63,8 @@ class Trainer:
         # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)                                                # with weight decay
         # discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)                                    # with weight decay
         # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr, first_decay=0.0, second_decay=0.0)               # without weight decay
-        qa_optimizer = AdamW(qa_params, lr=self.lr, weight_decay=0.01) # without weight decay
-        discriminator_optimizer = AdamW(dis_params, lr=self.lr, weight_decay=0.01)   # without weight decay
+        qa_optimizer = AdamW(qa_params, lr=self.lr) # without weight decay
+        discriminator_optimizer = AdamW(dis_params, lr=self.lr)   # without weight decay
 
         # Initialize training loop vars
         avg_qa_loss = 0
