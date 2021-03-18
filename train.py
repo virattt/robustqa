@@ -194,7 +194,7 @@ class Trainer():
         device = self.device
         model.to(device)
 
-        optimizer = AdamW(model.parameters(), lr=self.lr)
+        optimizer = AdamW(model.parameters(), lr=self.lr, weight_decay=0.01)
         global_idx = 0
         best_scores = {'F1': -1.0, 'EM': -1.0}
         tensorboard_writer = SummaryWriter(self.save_dir)
