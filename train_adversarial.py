@@ -8,7 +8,7 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
 from tqdm import tqdm
-from transformers import DistilBertTokenizerFast
+from transformers import DistilBertTokenizerFast, AdamW
 
 import data_utils
 import util_adversarial
@@ -57,13 +57,14 @@ class Trainer:
         model.to(device)
 
         # Create optimizers
-        qa_params = list(model.qa_model.named_parameters()) + list(model.qa_outputs.named_parameters())
-        dis_params = list(model.discriminator_model.named_parameters())
+        qa_params = list(model.qa_model.parameters()) + list(model.qa_outputs.parameters())
+        dis_params = list(model.discriminator_model.parameters())
 
         # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr)                                                # with weight decay
         # discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr)                                    # with weight decay
-        qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr, first_decay=0.0, second_decay=0.0)               # without weight decay
-        discriminator_optimizer = util_adversarial.get_opt(dis_params, lr=self.lr, first_decay=0.0, second_decay=0.0)   # without weight decay
+        # qa_optimizer = util_adversarial.get_opt(qa_params, lr=self.lr, first_decay=0.0, second_decay=0.0)               # without weight decay
+        qa_optimizer = AdamW(qa_params, lr=self.lr) # without weight decay
+        discriminator_optimizer = AdamW(dis_params, lr=self.lr)   # without weight decay
 
         # Initialize training loop vars
         avg_qa_loss = 0
