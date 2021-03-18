@@ -194,10 +194,10 @@ class Trainer():
         device = self.device
         model.to(device)
 
-        optimizer_params = util_adversarial.get_optimizer_grouped_parameters(model, self.lr)
+        # optimizer_params = util_adversarial.get_opt(model, self.lr)
         # qa_optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
-        # optimizer = AdamW(model.parameters(), lr=self.lr)
-        optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
+        optimizer = AdamW(model.parameters(), lr=self.lr)
+        # optimizer = torch.optim.AdamW(optimizer_params, lr=self.lr, weight_decay=0)
         global_idx = 0
         best_scores = {'F1': -1.0, 'EM': -1.0}
         tensorboard_writer = SummaryWriter(self.save_dir)
